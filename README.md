@@ -64,6 +64,21 @@ Si ya terminaste o son las 10:00 asegurate de seguir los siguientes pasos para l
 ### Endpoints de listings/propiedades:
 - GET /api/listings?pageSize=[pageSize]&page=[page] - Obtener todas las propiedades con paginación opcional (requiere autenticación)
 - GET /api/listings/:id - Obtener una propiedad específica por ID (requiere autenticación)
+- GET /api/listings/property-type/:type?pageSize=[pageSize]&page=[page] - Obtener las propiedades de un tipo de alojamiento (`property_type`, ej: Apartment, House, Condominium), con paginacion opcional (requiere autenticacion)
+- GET /api/listings/with-total-price?pageSize=[pageSize]&page=[page] - Obtener las propiedades con la propiedad calculada `totalPrice` (price + cleaning_fee) + (securrity_deposit + extra_people), con paginacion opcional (requiere autenticacion)
+- GET /api/listings/host/:host_id?pageSize=[pageSize]&page=[page] - Obtener las propiedades de un host (`host.host_id`), con paginacion opcional (requiere autenticacion)
+- PATCH /api/listings/:id/availability - Actualizar la disponibilidad de una propiedad. Body JSON con uno o mas de: `available_30` (0-30), `available_60` (0-60), `available_90` (0-90), `available_365` (0-365), todos enteros (requiere autenticacion)
+- GET /api/listings/top-hosts?limit=[limit] - Ranking de hosts con mas propiedades (`host_id`, `host_name`, `totalListings`), de mayor a menor. `limit` por defecto 10 (requiere autenticacion)
 
 ### Endpoint base:
 - GET / - Mensaje de bienvenida de la API
+
+## Notas de implementacion:
+
+- Las rutas de path fijo (`/with-total-price`, `/top-hosts`, `/property-type/:type`, `/host/:host_id`) se definen antes de `/:id`
+- Paginacion (`page` y `pageSize`): es opcional, pero si se envia uno debe enviarse el otro y ambos deben ser enteros positivos; de lo contrario se responde 400. Sin ninguno de los dos se devuelven todos los resultados, igual que `GET /api/listings`
+- `totalPrice`: se calcula en MongoDB con una agregacion. `price`, `cleaning_fee`, `security_deposit` y `extra_people` se convierten a numero y, si no existen o no son convertibles, valen 0. El resultado se redondea a 2 decimales.
+- `PATCH /api/listings/:id/availability`: se usa PATCH porque es una actualizacion parcial. Solo se aceptan `available_30`, `available_60`, `available_90` y `available_365`; cualquier otro campo, un valor no entero o fuera de rango responde 400. Si la propiedad no existe responde 404. Devuelve el objeto `availability` actualizado.
+- `top-hosts`: agrupa por `host.host_id` contando propiedades reales en la coleccion (no usa `host_total_listings_count`). `limit` debe ser un entero positivo (400 si no lo es). En caso de empate se ordena por `host_id`.
+- Autenticacion: todos los endpoints nuevos usan `authMiddleware`
+- Los endpoints que filtran por tipo o por host devuelven 200 con un array vacio si no hay coincidencias.
